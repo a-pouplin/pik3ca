@@ -1,3 +1,7 @@
+# data folder
+data/test_input
+data/train_input
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
