@@ -1,17 +1,18 @@
 import torch
 import pandas as pd
-from models.attention import AdditiveMIL
+from models.attention import AdditiveMIL, AttentionMIL
 from models.baseline import Baseline
 from data.dataset import BreastCancerDataset
 from torch.utils.data import DataLoader
 from pathlib import Path
 import argparse
+from utils.metrics import load_json
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--results_dir", default="results/", type=str)
-    parser.add_argument("--model_dir", default="results/baseline/", type=str)
+    parser.add_argument("--run_id", default="baseline_70_run_91043", type=str)
     opts = parser.parse_args()
     return opts
 
@@ -23,7 +24,7 @@ def load_testset(data_dir):
     test_loader = DataLoader(testset, batch_size=len(testset), shuffle=False)
     return test_loader
 
-def save_predictions(model, test_loader, result_dir):
+def save_predictions(model, test_loader, submission_path):
     """
     Saves predictions to csv file
     """
@@ -44,20 +45,27 @@ def save_predictions(model, test_loader, result_dir):
     assert submission.shape == (149, 2), "Your submission file must be of shape (149, 2)"
     assert list(submission.columns) == ["Sample ID","Target",], "Your submission file must have columns `Sample ID` and `Target`"
 
-    print("Saving predictions to csv file...")
-    submission.to_csv(result_dir/"test_baseline.csv", index=None)
+    print(f"Saving predictions in {submission_path}")
+    submission.to_csv(submission_path, index=None)
     print("Done!")
 
 if __name__ == '__main__':
     opts = get_args()
     data_dir = Path(opts.data_dir)
     result_dir = Path(opts.results_dir)
-    model_dir = Path(opts.model_dir)
 
+    # load test data
     test_loader = load_testset(data_dir)
 
-    # model = AdditiveMIL()
-    model = Baseline()
-    model.load_state_dict(torch.load(model_dir / 'model_weights.pth'))
+    # directory where model is saved
+    run_dir = result_dir / f"runs/{opts.run_id}"
+    params = load_json(run_dir / 'params.json')
+
+    # load model structure and weights
+    model_class = getattr(__import__(__name__), params['model'])
+    model = model_class(hidden_dim=params['hidden_dim']) 
+    model.load_state_dict(torch.load(run_dir / 'model_weights.pth'))
     
-    save_predictions(model, test_loader, result_dir)
+    # save predictions
+    submission_path = result_dir / f"submissions/{opts.run_id}.csv"
+    save_predictions(model, test_loader, submission_path)

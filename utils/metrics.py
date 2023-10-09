@@ -1,20 +1,58 @@
-from sklearn.metrics import roc_auc_score, recall_score, precision_score
+from sklearn.metrics import roc_auc_score, roc_curve
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-import pickle
+import pickle, os, json
+from datetime import datetime 
+from pathlib import Path
+import random
+
 
 def load_pickle(path):
     with open(path, "rb") as file:
         myfile = pickle.load(file)
     return myfile
 
+
+def save_pickle(path, myfile):
+    with open(path, "wb") as file:
+        pickle.dump(myfile, file)
+
+
+def load_json(path):
+    with open(path, "r") as file:
+        myfile = json.load(file)
+    return myfile
+
+
+def save_json(path, myfile):
+    with open(path, "w") as file:
+        json.dump(myfile, file)
+
+
 def to_npy(tensor):
     if isinstance(tensor, torch.Tensor):
         return tensor.detach().numpy()
     return tensor
 
+
+def set_seed(seed_value):
+    """Set seed for reproducibility."""
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+
+
+def create_folder_run_id(result_dir, model, metric):
+    # Create a folder for the run_id "[model]_[metric]_run_[time]"
+    now = datetime.now()
+    time_id = now.strftime('%d%H%M')
+    time_id = int(time_id)
+    run_id = f'{model.lower()}_{metric}_run_{time_id}'
+    os.makedirs(result_dir / run_id, exist_ok=True)
+    return Path(result_dir / run_id)
+    
 
 def compute_metric_for_folds(results_dict, metric_func):
     """
@@ -39,62 +77,7 @@ def compute_metric_for_folds(results_dict, metric_func):
     return metric_values
 
 
-def plot_k_folds_train_and_val(values_training, values_validation, y_label="axis"):
-    num_folds = len(values_training)
-
-    # Create subplots
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    
-    # Plotting for Training
-    for i in range(num_folds):
-        axes[0].plot(values_training[i], label=f"Fold {i+1}")
-    axes[0].set_title("Training")
-    axes[0].set_xlabel("epochs")
-    axes[0].set_ylabel(y_label)
-    axes[0].legend()
-
-    # Plotting for Validation
-    for i in range(num_folds):
-        axes[1].plot(values_validation[i], label=f"Fold {i+1}")
-    axes[1].set_title("Validation")
-    axes[1].set_xlabel("epochs")
-    axes[1].set_ylabel(y_label)
-    axes[1].legend()
-
-    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
-    plt.tight_layout()
-    plt.show()
-
-from sklearn.metrics import roc_curve, auc
-
-def plot_roc_curve_for_fold(results_validation):
-    """
-    Plots the ROC curve for a specific fold.
-    
-    :param results_validation: Dictionary containing results for each fold.
-    :param fold_number: The fold number for which to plot the ROC curve.
-    """
-    num_fold = len(results_validation)
-
-    plt.figure()
-    for i in range(num_fold):
-        labels = results_validation[i]['labels'][-1]
-        predictions = results_validation[i]['predictions'][-1]
-        fpr, tpr, thresholds = roc_curve(labels, predictions)
-        roc_auc = auc(fpr, tpr)
-        plt.plot(fpr, tpr, label='ROC curve of fold {0} (area = {1:0.2f})'.format(i+1, roc_auc))
-
-    plt.plot([0, 1], [0, 1], color='navy',linestyle='--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic')
-    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
-    plt.show()
-
-
-def compute_metrics_per_epoch(results, metric_func, rounding=True):
+def compute_metrics_per_epoch(results, metric_func, rounding=False):
     """
     Computes a specified metric from the results_dict.
     
@@ -102,7 +85,7 @@ def compute_metrics_per_epoch(results, metric_func, rounding=True):
     :param metric_func: scikit-learn function to compute a specific metric.
     :return: mean and std of the metric, in array for each epoch.
     """
-    num_epochs = len(results[0][0])
+    num_epochs =  len(list(list(results.values())[0].values())[0])
     mean_epochs = []
     std_epochs = []
     metric = []
@@ -114,7 +97,6 @@ def compute_metrics_per_epoch(results, metric_func, rounding=True):
         else:
             for seed in results:
                 for fold in results[seed]:
-                    # Get labels and predictions for the last epoch 
                     labels = results[seed][fold][epoch]["Labels"]
                     predictions = results[seed][fold][epoch]["Predictions"]
                     if rounding:
@@ -144,7 +126,7 @@ def plot_roc_curve_mean_std(ax, results, label=None, color='orange'):
     :param results: Dictionary containing results for each fold.
     :param fold_number: The fold number for which to plot the ROC curve.
     """
-    epoch = len(results[0][0]) - 1
+    epoch = len(list(list(results.values())[0].values())[0]) - 1
     fprs, tprs, thresholds, aucs = [], [], [], []
     for seed in results:
         for fold in results[seed]:
@@ -180,46 +162,8 @@ def plot_roc_curve_mean_std(ax, results, label=None, color='orange'):
 
 
 if __name__ == "__main__":
-    import pickle
-    from pathlib import Path
-
-    result_dir = Path("results/baseline/")
-
-    # with open(result_dir / "results_training.pkl", "rb") as file:
-    #     results_training = pickle.load(file)
-
-    # with open(result_dir / "results_validation.pkl", "rb") as file:
-    #     results_validation = pickle.load(file)
-
-    with open(result_dir / "results_test.pkl", "rb") as file:
-        results_validation = pickle.load(file)
-
-
-    # auc_values_training = compute_metric_for_folds(results_training, roc_auc_score)
-    # auc_values_validation = compute_metric_for_folds(results_validation, roc_auc_score)
-
-    # loss_values_training = compute_metric_for_folds(results_training, "loss")
-    # loss_values_validation = compute_metric_for_folds(results_validation, "loss")
-
-    # plot_k_folds_train_and_val(auc_values_training, auc_values_validation, y_label="AUC")
-    # plot_k_folds_train_and_val(loss_values_training, loss_values_validation, y_label="Loss")
-    # plot_roc_curve_for_fold(results_validation)
-
-    auc_mean, auc_std = compute_metrics_per_epoch(results_validation, roc_auc_score, rounding=False)
-    sens_mean, sens_std = compute_metrics_per_epoch(results_validation, recall_score)
-    loss_mean, loss_std = compute_metrics_per_epoch(results_validation, "loss")
-
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    axes[0] = plot_mean_std(axes[0], auc_mean, auc_std, label="AUC", color='orange')
-    axes[0] = plot_mean_std(axes[0], sens_mean, sens_std, label="Sensitivity", color='purple')
-    axes[1] = plot_mean_std(axes[1], loss_mean, loss_std, y_label="Loss")
-    axes[0].legend(loc='upper left', bbox_to_anchor=(1, 1))
-    plt.tight_layout()
-    plt.show()
-
-    fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-    ax, aucs = plot_roc_curve_mean_std(ax, results_validation)
-    print(aucs)
-    plt.title("ROC curve | AUC mean: {:.2f} (std: {:.2f})".format(np.mean(aucs), np.std(aucs)))
-    plt.tight_layout()
-    plt.show()
+    # train_additive = load_pickle("../results/runs/additivemil_67_run_90956/results_training.pkl")
+    val_additive = load_pickle("results/runs/additivemil_67_run_90956/results_validation.pkl")
+    val_mean, val_std = compute_metrics_per_epoch(val_additive, roc_auc_score, rounding=False)
+    print(val_mean)
+    print(len(val_mean))

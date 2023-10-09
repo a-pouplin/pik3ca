@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import unittest
 
 class Baseline(nn.Module):
-    def __init__(self, feature_dim=2048, num_classes=1, hidden_dim=512):
+    def __init__(self, feature_dim=2048, num_classes=1, hidden_dim=256):
         super(Baseline, self).__init__()
         self.feature_dim = feature_dim 
         self.hidden_dim = hidden_dim
