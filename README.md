@@ -6,6 +6,7 @@ Implementation Additive MIL model for pik3ca mutation detection in histopatholog
 -------
 To set up the environment and avoid path issues, run:
 ```
+pip install -r requirements.txt
 pip install -e .
 ```
 
