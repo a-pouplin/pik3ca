@@ -8,7 +8,7 @@ import os
 
 
 def download_data():
-    # url not working, need to download manuallys
+    # url not working, need to download manually 
     data_dir = Path("data/")
     challenge_url = "https://challengedata.ens.fr/participants/challenges/98/download/"
 
